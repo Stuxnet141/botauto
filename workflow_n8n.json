@@ -1,0 +1,207 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "url": "https://nitter.net/elonmusk/rss",
+        "options": {
+          "pollingInterval": 300
+        }
+      },
+      "name": "RSS Twitter",
+      "type": "n8n-nodes-base.rssFeed",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ json: { tweetText: $json["contentSnippet"], username: "elonmusk", alias: "NzXeLeaks" } }];"
+      },
+      "name": "Extract Tweet Text",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "headerAuth",
+        "options": {},
+        "url": "https://api.openai.com/v1/chat/completions",
+        "method": "POST",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "gpt-4"
+            },
+            {
+              "name": "messages",
+              "value": "[{"role":"user","content":"ترجم هذا إلى العربية: {{$json[\"tweetText\"]}}"}]"
+            }
+          ]
+        },
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENAI_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "name": "Translate Tweet",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "webhookId": "publish-insta",
+        "httpMethod": "POST"
+      },
+      "name": "Webhook Publish Insta",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [850, 500]
+    },
+    {
+      "parameters": {
+        "functionCode": "const content = `🔥 المسرب ${items[0].json.alias} يقول:\n✍️ @${items[0].json.username}\n📢 الترجمة:\n${items[0].json.choices[0].message.content}`;
+
+return [{ json: { storyText: content, originalTweet: items[0].json.tweetText } }];"
+      },
+      "name": "Format Story Text",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://your-server.com/api/generate-image",
+        "method": "POST",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": {
+          "alias": "={{$json["alias"]}}",
+          "username": "={{$json["username"]}}",
+          "storyText": "={{$json["storyText"]}}",
+          "backgroundImageUrl": "https://images.unsplash.com/photo-1506744038136-46273834b3fb?ixlib=rb-4.0.3&auto=format&fit=crop&w=1080&q=80"
+        }
+      },
+      "name": "Generate Story Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v15.0/INSTAGRAM_BUSINESS_ACCOUNT_ID/stories",
+        "method": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": {
+          "image_url": "={{$json["imageUrl"]}}",
+          "caption": "={{$json["storyText"]}}",
+          "access_token": "YOUR_INSTAGRAM_ACCESS_TOKEN"
+        }
+      },
+      "name": "Post Story to Instagram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "webhookUrl": "YOUR_DISCORD_WEBHOOK_URL",
+        "content": "🔥 ترجمنا تغريدة @{{$json["username"]}} - اضغط الزر لنشرها على إنستغرام!",
+        "embedsUi": {
+          "parameter": [
+            {
+              "title": "تغريدة مترجمة",
+              "description": "{{$json["choices"][0]["message"]["content"]}}",
+              "color": 65280
+            }
+          ]
+        },
+        "buttonsUi": {
+          "parameter": [
+            {
+              "label": "انشر على إنستغرام",
+              "customId": "publish_insta",
+              "style": "PRIMARY",
+              "type": "BUTTON"
+            }
+          ]
+        }
+      },
+      "name": "Send to Discord",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 1,
+      "position": [850, 100]
+    }
+  ],
+  "connections": {
+    "RSS Twitter": {
+      "main": [
+        [
+          {
+            "node": "Extract Tweet Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Tweet Text": {
+      "main": [
+        [
+          {
+            "node": "Translate Tweet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Translate Tweet": {
+      "main": [
+        [
+          {
+            "node": "Format Story Text",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send to Discord",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Format Story Text": {
+      "main": [
+        [
+          {
+            "node": "Generate Story Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Story Image": {
+      "main": [
+        [
+          {
+            "node": "Post Story to Instagram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
